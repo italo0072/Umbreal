@@ -76,33 +76,3 @@ npm start
 
 `npm test` comprueba validaciones y comparación de origen sin conectar con Supabase. Detené `npm run dev` antes de ejecutar la compilación y el servidor de producción local.
 
-## 4. Subir a GitHub y desplegar en Vercel
-
-1. Subí el contenido de `umbral` a tu repositorio público. Dejá `package.json`, `package-lock.json` y `README.md` en la raíz. El `.gitignore` excluye `.env.local`, certificados, dependencias y compilaciones.
-2. En Vercel, elegí **Add New → Project** e importá tu repositorio. Seleccioná **Next.js**, la carpeta donde esté `package.json` y Node.js **24.x**. Mantené los comandos predeterminados.
-3. Agregá las dos variables públicas de Supabase y `APP_URL` al entorno **Production**. En `APP_URL` usá el origen HTTPS del proyecto (copiá el dominio de Vercel y anteponé `https://`). Si el dominio definitivo se asigna en el primer despliegue, ajustá la variable después y ejecutá **Redeploy**.
-4. En Supabase cambiá **Site URL** al mismo origen HTTPS. Abrí esa URL de producción y probá registro, verificación, recuperación, acceso privado y salida. Cada entorno de vista previa necesita su propio `APP_URL` si vas a probar formularios allí.
-5. Pegá la URL real al inicio de este README y subí el cambio. Entregá al docente el enlace al repositorio público y el enlace al dominio de producción. [Variables de Vercel](https://vercel.com/docs/environment-variables/managing-environment-variables)
-
-## 5. Arquitectura y seguridad
-
-| Requisito | Implementación |
-| --- | --- |
-| Server Components | `lib/supabase/server.ts` lee las cookies por solicitud. El layout verifica el usuario y adapta su navegación. El dashboard vuelve a exigir una identidad verificada. |
-| Client Components | `lib/supabase/client.ts` crea un cliente público con Auth deshabilitado mediante `accessToken`. Solo consulta el catálogo público de guías. Los formularios envían los datos a Server Actions. |
-| Middleware de Next.js | En Next.js 16 la convención se llama **Proxy**. `proxy.ts` usa `@supabase/ssr`, verifica al usuario con `getUser()`, actualiza la petición y conserva las cookies en la respuesta, incluso al redirigir. [Documentación de Next.js](https://nextjs.org/docs/app/getting-started/proxy) |
-| Server Actions | `app/actions.ts` valida origen, correo, nombre, código y contraseña según la operación. La verificación de identidad y las escrituras de cookies ocurren en el servidor. |
-| Route Handler | `app/api/mi-cuenta/route.ts` vuelve a validar al usuario, responde con datos mínimos y aplica `private, no-store`. Se puede consultar con el navegador. |
-| Cookies y caché | `lib/supabase/ssr.ts` fuerza los atributos de sesión. El Proxy conserva los encabezados de caché del SDK. Las rutas con sesión se renderizan por petición. [Guía SSR de Supabase](https://supabase.com/docs/guides/auth/server-side/advanced-guide) |
-| Recuperación | La acción valida el código de tipo `recovery` con un cliente efímero en el servidor, actualiza la contraseña y cierra esa sesión. El usuario ingresa de nuevo desde login. |
-| XSS | React escapa el nombre y el resto del texto renderizado. La política CSP asigna un nonce nuevo a los scripts de cada respuesta. La aplicación sirve las fuentes localmente. |
-| CSRF | Las mutaciones usan Server Actions por POST, la verificación de origen de Next.js, la comparación estricta con `APP_URL` y cookies SameSite=Lax. Un origen ausente o diferente se rechaza. [Documentación de Server Actions](https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions) |
-| PostgreSQL y RLS | Cada usuario autenticado solo puede leer su fila en `umbral_profiles`. El trigger crea la fila al registrarse. `umbral_guides` permite lectura pública. Los roles del navegador carecen de permisos de escritura en ambas tablas. |
-| SEO | La portada tiene título, descripción, URL canónica y entrada en `sitemap.xml`. Las páginas de cuenta y el dashboard usan `noindex`. |
-
-### Problemas frecuentes
-
-- **No llega el código.** Revisá spam, las dos plantillas, el remitente SMTP y los límites de envío. En Supabase, consultá **Authentication → Logs** para distinguir una dirección no autorizada de un límite temporal.
-- **El formulario rechaza el origen.** Compará protocolo, dominio y puerto del navegador con `APP_URL`. Después de editar variables, reiniciá Next.js o volvé a desplegar.
-- **El perfil o las guías dan error.** Verificá que ejecutaste `supabase/schema.sql` en el mismo proyecto de la Project URL. Si tu proyecto tiene deshabilitada la **Data API**, habilitala y exponé el esquema `public`. Conservá las políticas RLS.
-- **La cookie aparece en DevTools.** DevTools permite inspeccionar sus atributos. La prueba de acceso desde la página es `document.cookie`.
